@@ -13,6 +13,7 @@ import Data.Char (toLower)
 import qualified System.IO
 import Control.Concurrent
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
+import Data.Function (fix)
 
 safeRead :: Read a => a -> String -> a
 safeRead d s =
@@ -71,23 +72,28 @@ run' vars inputH outputH app = do
     hPut $ B.singleton '\n'
     mapM_ (printHeader hPut) h'
     hPut $ B.singleton '\n'
-    _ <- fromEitherFile (responseBody res) (myPut outputH) ()
+    _ <- fix (runEnumerator (fromEitherFile (responseBody res)))
+             (myPut outputH) ()
     return ()
 
 myPut :: System.IO.Handle -> () -> B.ByteString -> IO (Either () ())
 myPut outputH _ bs = B.hPut outputH bs >> return (Right ())
 
-requestBodyHandle :: System.IO.Handle -> MVar Int -> Enumerator a
-requestBodyHandle h mlen iter accum = modifyMVar mlen (helper accum) where
-    helper a 0 = return (0, Right a)
-    helper a len = do
+requestBodyHandle :: System.IO.Handle -> MVar Int -> Enumerator
+requestBodyHandle h mlen = Enumerator helper where
+    helper rec iter a = do
+        res <- modifyMVar mlen $ helper' iter a
+        case res of
+            Left x -> return x
+            Right x -> rec iter x
+    helper' _ a 0 = return (0, Left $ Right a)
+    helper' iter a len = do
         bs <- B.hGet h $ min len defaultChunkSize
         let newLen = len - B.length bs
         ea' <- iter a bs
         case ea' of
-            Left a' -> return (newLen, Left a')
-            Right a' -> helper a' newLen
-
+            Left a' -> return (newLen, Left $ Left a')
+            Right a' -> return (newLen, Right a')
 printHeader :: (B.ByteString -> IO ())
             -> (ResponseHeader, B.ByteString)
             -> IO ()

@@ -51,13 +51,13 @@ jsonp app env = do
             }
         _ -> return res
 
-addCallback :: B8.ByteString -> Enumerator a -> Enumerator a
-addCallback cb e iter a = do
+addCallback :: B8.ByteString -> Enumerator -> Enumerator
+addCallback cb (Enumerator e) = Enumerator $ \rec iter a -> do
     ea' <- iter a $ B8.snoc cb '('
     case ea' of
         Left a' -> return $ Left a'
         Right a' -> do
-            ea'' <- e iter a'
+            ea'' <- e rec iter a'
             case ea'' of
                 Left a'' -> return $ Left a''
                 Right a'' -> iter a'' $ B8.singleton ')'
