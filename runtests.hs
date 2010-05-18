@@ -12,7 +12,18 @@ main = defaultMain [testSuite]
 testSuite :: Test
 testSuite = testGroup "Network.Wai.Parse"
     [ testCase "parseQueryString" caseParseQueryString
+    , testCase "breakLen" caseBreakLen
+    , testCase "breakDiscard" caseBreakDiscard
     ]
+
+caseBreakLen = do
+    ([1, 2, 3], 3, [4, 5, 6]) @=? breakLen 4 [1..6]
+
+c2w = toEnum . fromEnum
+
+caseBreakDiscard = do
+    breakDiscard (c2w '=') ([], [B8.pack "foo"])
+        @?= ((([], [B8.pack "foo"]), 3), ([], []))
 
 caseParseQueryString :: Assertion
 caseParseQueryString = do
