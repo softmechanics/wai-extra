@@ -30,7 +30,7 @@ import Network
     ( listenOn, accept, sClose, PortID(PortNumber), Socket
     , withSocketsDo)
 import Control.Exception (bracket, finally, Exception, throwIO)
-import System.IO (Handle, hClose)
+import System.IO (Handle, hClose, hFlush)
 import Control.Concurrent (forkIO)
 import Control.Monad (unless)
 import Data.Maybe (isJust, fromJust, fromMaybe)
@@ -73,6 +73,8 @@ serveConnection port app conn remoteHost' =
             env <- parseRequest port conn remoteHost'
             res <- app env
             sendResponse (httpVersion env) conn res
+            hFlush conn
+            serveConnection'
 
 parseRequest :: Port -> Handle -> String -> IO Request
 parseRequest port conn remoteHost' = do
