@@ -32,6 +32,7 @@ import Network
     , withSocketsDo)
 import Control.Exception (bracket, finally, Exception, throwIO)
 import System.IO (Handle, hClose, hFlush)
+import System.IO.Error (isEOFError, ioeGetHandle)
 import Control.Concurrent (forkIO)
 import Control.Monad (unless)
 import Data.Maybe (isJust, fromJust, fromMaybe)
@@ -61,13 +62,19 @@ serveConnection port app conn remoteHost' = do
     (finally 
       serveConnection' 
       (hClose conn))
-    (\_ -> return ())
+    catchEOFError
   where serveConnection' = do 
           env <- parseRequest port conn remoteHost'
           res <- app env
           sendResponse (httpVersion env) conn res
           hFlush conn
           serveConnection'
+
+        catchEOFError :: IOError -> IO ()
+        catchEOFError e | isEOFError e = case ioeGetHandle e of
+                                              Just h  -> unless (h == conn) (ioError e)
+                                              Nothing -> ioError e
+                        | otherwise = ioError e
 
 parseRequest :: Port -> Handle -> String -> IO Request
 parseRequest port conn remoteHost' = do
