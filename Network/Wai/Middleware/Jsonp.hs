@@ -43,7 +43,7 @@ dropQM bs
 -- \"application/json\" response, then convern that into a JSONP response,
 -- having a content type of \"text\/javascript\" and calling the specified
 -- callback function.
-jsonp :: Middleware a
+jsonp :: Middleware
 jsonp app env = do
     let accept = fromMaybe B8.empty $ lookup "Accept" $ requestHeaders env
     let callback :: Maybe B8.ByteString
@@ -66,19 +66,19 @@ jsonp app env = do
   where
     go c r@(ResponseLBS _ hs _) = go' c r hs
     go c r@(ResponseFile _ hs _) = go' c r hs
-    go c (ResponseEnumerator e) = addCallback c e
+    go c (ResponseEnumerator e) = return $ ResponseEnumerator (addCallback c e)
     go' c r hs =
         case checkJSON hs of
-            Just _ -> addCallback c $ responseEnumerator r
+            Just _ -> return $ ResponseEnumerator (addCallback c $ responseEnumerator r)
             Nothing -> return r
     checkJSON hs =
         case fmap B8.unpack $ lookup "Content-Type" hs of
             Just "application/json" -> Just $ fixHeaders hs
             _ -> Nothing
     fixHeaders = changeVal "Content-Type" "text/javascript"
-    addCallback :: B8.ByteString -> ResponseEnumerator a -> IO (Response a)
+    addCallback :: B8.ByteString -> ResponseEnumerator a -> ResponseEnumerator a
     addCallback cb e =
-        return $ ResponseEnumerator $ helper
+        helper
       where
         helper f =
             e helper'

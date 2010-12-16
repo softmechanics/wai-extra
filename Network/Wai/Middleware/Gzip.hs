@@ -33,18 +33,17 @@ import Data.Enumerator (($$), joinI)
 --
 -- * I've read that IE can\'t support compression for Javascript files.
 gzip :: Bool -- ^ should we gzip files?
-     -> Middleware a
+     -> Middleware
 gzip files app env = do
     res <- app env
-    case shouldGzip res of
-        Nothing -> return res
-        Just enum -> return $ ResponseEnumerator $ compressE enum
+    let enum  = responseEnumerator res
+        enum' = if shouldGzip res
+                   then compressE enum
+                   else enum
+    return $ ResponseEnumerator enum'
   where
-    shouldGzip ResponseFile{} | not files = Nothing
-    shouldGzip res =
-        if "gzip" `elem` enc
-            then Just $ responseEnumerator res
-            else Nothing
+    shouldGzip ResponseFile{} = files 
+    shouldGzip _ = "gzip" `elem` enc
     enc = fromMaybe [] $ (splitCommas . B.unpack)
                     `fmap` lookup "Accept-Encoding" (requestHeaders env)
 
